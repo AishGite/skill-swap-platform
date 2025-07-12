@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface SignupPageProps {
-  onSignup: (userData: SignupData) => void;
+  onSignup: (userData: SignupData) => Promise<{ success: boolean; error?: string }>;
 }
 
 interface SignupData {
@@ -74,11 +74,13 @@ const SignupPage: React.FC<SignupPageProps> = ({ onSignup }) => {
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const result = await onSignup(formData);
       
-      onSignup(formData);
-      navigate('/dashboard');
+      if (result.success) {
+        navigate('/dashboard');
+      } else {
+        setError(result.error || 'Signup failed. Please try again.');
+      }
     } catch (err) {
       setError('Signup failed. Please try again.');
     } finally {
@@ -224,39 +226,54 @@ const SignupPage: React.FC<SignupPageProps> = ({ onSignup }) => {
               </div>
             </div>
 
-            {/* Profile Photo Upload */}
+            {/* Profile Photo Field */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="profilePhoto" className="block text-sm font-medium text-gray-700 mb-2">
                 Profile Photo (Optional)
               </label>
-              <div className="space-y-4">
-                {previewImage && (
-                  <div className="flex justify-center">
+              <div className="space-y-3">
+                <div className="flex items-center space-x-4">
+                  <div className="relative">
                     <img
-                      src={previewImage}
+                      src={previewImage || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face"}
                       alt="Profile preview"
-                      className="w-24 h-24 rounded-full object-cover border-4 border-primary-100"
+                      className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
+                    />
+                    {previewImage && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPreviewImage('');
+                          setFormData(prev => ({ ...prev, profilePhoto: null }));
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = '';
+                          }
+                        }}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                    >
+                      {previewImage ? 'Change Photo' : 'Choose Photo'}
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
                     />
                   </div>
-                )}
-                <div className="flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="btn-secondary"
-                  >
-                    {previewImage ? 'Change Photo' : 'Upload Photo'}
-                  </button>
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <p className="text-xs text-gray-500 text-center">
-                  Max size: 5MB. Supported formats: JPG, PNG, GIF
+                <p className="text-xs text-gray-500">
+                  Upload a profile photo (max 5MB). This helps others recognize you.
                 </p>
               </div>
             </div>
@@ -273,7 +290,7 @@ const SignupPage: React.FC<SignupPageProps> = ({ onSignup }) => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center">
@@ -299,7 +316,7 @@ const SignupPage: React.FC<SignupPageProps> = ({ onSignup }) => {
               </div>
             </div>
 
-            {/* Login Link */}
+            {/* Sign In Link */}
             <div className="text-center">
               <p className="text-sm text-gray-600">
                 Already have an account?{' '}

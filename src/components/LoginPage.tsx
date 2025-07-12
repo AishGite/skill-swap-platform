@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface LoginPageProps {
-  onLogin: (email: string, password: string) => void;
+  onLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
@@ -19,15 +19,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const result = await onLogin(email, password);
       
-      // For demo purposes, accept any email/password combination
-      if (email && password) {
-        onLogin(email, password);
+      if (result.success) {
         navigate('/dashboard');
       } else {
-        setError('Please enter both email and password');
+        setError(result.error || 'Login failed. Please try again.');
       }
     } catch (err) {
       setError('Login failed. Please try again.');

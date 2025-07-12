@@ -139,6 +139,21 @@ async function createTables() {
       )
     `);
 
+    // Notifications table
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        type ENUM('swap_request', 'swap_accepted', 'swap_rejected', 'new_message') NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT FALSE,
+        related_id INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
     console.log('✅ Database tables created successfully!');
     
     // Insert sample data
@@ -239,8 +254,8 @@ async function insertSampleData() {
 
       // Insert user profile
       await pool.execute(
-        'INSERT INTO user_profiles (user_id, location, availability, rating) VALUES (?, ?, ?, ?)',
-        [userId, user.location, user.availability, (Math.random() * 1 + 4).toFixed(1)]
+        'INSERT INTO user_profiles (user_id) VALUES (?)',
+        [userId]
       );
 
       // Insert skills offered
@@ -427,7 +442,7 @@ app.get('/api/users', async (req, res) => {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
-    query += ` GROUP BY u.id ORDER BY up.rating DESC`;
+    query += ` GROUP BY u.id, u.name, u.email, u.profile_photo, up.location, up.availability, up.rating ORDER BY up.rating DESC`;
 
     const [users] = await pool.execute(query, params);
 
@@ -452,6 +467,51 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// Get current user profile
+app.get('/api/users/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const [users] = await pool.execute(`
+      SELECT 
+        u.id, u.name, u.email, u.profile_photo, u.date_of_birth,
+        up.location, up.availability, up.rating, up.total_swaps,
+        GROUP_CONCAT(DISTINCT CASE WHEN s.skill_type = 'offered' THEN s.skill_name END) as skills_offered,
+        GROUP_CONCAT(DISTINCT CASE WHEN s.skill_type = 'wanted' THEN s.skill_name END) as skills_wanted
+      FROM users u
+      LEFT JOIN user_profiles up ON u.id = up.user_id
+      LEFT JOIN skills s ON u.id = s.user_id
+      WHERE u.id = ?
+      GROUP BY u.id, u.name, u.email, u.profile_photo, u.date_of_birth, up.location, up.availability, up.rating, up.total_swaps
+    `, [userId]);
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = users[0];
+    const processedUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      profilePhoto: user.profile_photo,
+      dateOfBirth: user.date_of_birth,
+      location: user.location,
+      availability: user.availability,
+      rating: parseFloat(user.rating) || 0,
+      totalSwaps: user.total_swaps || 0,
+      skillsOffered: user.skills_offered ? user.skills_offered.split(',') : [],
+      skillsWanted: user.skills_wanted ? user.skills_wanted.split(',') : []
+    };
+
+    res.json(processedUser);
+
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
 // Get user profile
 app.get('/api/users/:id', authenticateToken, async (req, res) => {
   try {
@@ -467,7 +527,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
       LEFT JOIN user_profiles up ON u.id = up.user_id
       LEFT JOIN skills s ON u.id = s.user_id
       WHERE u.id = ?
-      GROUP BY u.id
+      GROUP BY u.id, u.name, u.email, u.profile_photo, u.date_of_birth, up.location, up.availability, up.rating, up.total_swaps
     `, [userId]);
 
     if (users.length === 0) {
@@ -561,7 +621,7 @@ app.post('/api/swaps/request', authenticateToken, async (req, res) => {
     const requesterId = req.user.userId;
 
     // Check if recipient exists
-    const [recipients] = await pool.execute('SELECT id FROM users WHERE id = ?', [recipientId]);
+    const [recipients] = await pool.execute('SELECT id, name FROM users WHERE id = ?', [recipientId]);
     if (recipients.length === 0) {
       return res.status(404).json({ error: 'Recipient not found' });
     }
@@ -577,9 +637,18 @@ app.post('/api/swaps/request', authenticateToken, async (req, res) => {
     }
 
     // Create swap request
-    await pool.execute(
+    const [result] = await pool.execute(
       'INSERT INTO swap_requests (requester_id, recipient_id, message) VALUES (?, ?, ?)',
       [requesterId, recipientId, message]
+    );
+
+    // Create notification for recipient
+    const [requester] = await pool.execute('SELECT name FROM users WHERE id = ?', [requesterId]);
+    const requesterName = requester[0]?.name || 'Someone';
+    
+    await pool.execute(
+      'INSERT INTO notifications (user_id, type, title, message, related_id) VALUES (?, ?, ?, ?, ?)',
+      [recipientId, 'swap_request', 'New Swap Request', `${requesterName} wants to swap skills with you`, result.insertId]
     );
 
     res.status(201).json({ message: 'Swap request sent successfully' });
@@ -621,7 +690,19 @@ app.get('/api/swaps', authenticateToken, async (req, res) => {
 
     const [requests] = await pool.execute(query, params);
 
-    res.json(requests);
+    // Transform the data to match the frontend interface
+    const transformedRequests = requests.map(request => ({
+      id: request.id,
+      status: request.status,
+      message: request.message,
+      createdAt: request.created_at,
+      requesterName: request.requester_name,
+      requesterPhoto: request.requester_photo,
+      recipientName: request.recipient_name,
+      recipientPhoto: request.recipient_photo
+    }));
+
+    res.json(transformedRequests);
 
   } catch (error) {
     console.error('Get swaps error:', error);
@@ -638,7 +719,7 @@ app.put('/api/swaps/:id/respond', authenticateToken, async (req, res) => {
 
     // Check if user is the recipient
     const [requests] = await pool.execute(
-      'SELECT recipient_id FROM swap_requests WHERE id = ?',
+      'SELECT requester_id, recipient_id FROM swap_requests WHERE id = ?',
       [id]
     );
 
@@ -656,16 +737,23 @@ app.put('/api/swaps/:id/respond', authenticateToken, async (req, res) => {
       [status, id]
     );
 
+    // Create notification for requester
+    const notificationType = status === 'accepted' ? 'swap_accepted' : 'swap_rejected';
+    const notificationTitle = status === 'accepted' ? 'Swap Request Accepted' : 'Swap Request Rejected';
+    const notificationMessage = status === 'accepted' 
+      ? 'Your swap request has been accepted!'
+      : 'Your swap request has been rejected.';
+
+    await pool.execute(
+      'INSERT INTO notifications (user_id, type, title, message, related_id) VALUES (?, ?, ?, ?, ?)',
+      [requests[0].requester_id, notificationType, notificationTitle, notificationMessage, id]
+    );
+
     // If accepted, increment total swaps for both users
     if (status === 'accepted') {
-      const [request] = await pool.execute(
-        'SELECT requester_id, recipient_id FROM swap_requests WHERE id = ?',
-        [id]
-      );
-
       await pool.execute(
         'UPDATE user_profiles SET total_swaps = total_swaps + 1 WHERE user_id IN (?, ?)',
-        [request[0].requester_id, request[0].recipient_id]
+        [requests[0].requester_id, requests[0].recipient_id]
       );
     }
 
@@ -674,6 +762,84 @@ app.put('/api/swaps/:id/respond', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Respond to swap error:', error);
     res.status(500).json({ error: 'Failed to update swap request' });
+  }
+});
+
+// Get user notifications
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    let limit = 50;
+    if (req.query.limit) {
+      const parsed = parseInt(req.query.limit, 10);
+      if (!isNaN(parsed) && parsed > 0) limit = parsed;
+    }
+
+    const [notifications] = await pool.execute(`
+      SELECT id, type, title, message, is_read, created_at, related_id
+      FROM notifications 
+      WHERE user_id = ? 
+      ORDER BY created_at DESC 
+      LIMIT ${Number(limit) || 50}
+    `, [userId]);
+
+    // Transform the data to match the frontend interface
+    const transformedNotifications = notifications.map(notification => ({
+      id: notification.id,
+      type: notification.type,
+      message: notification.message,
+      time: new Date(notification.created_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      read: notification.is_read === 1
+    }));
+
+    res.json(transformedNotifications);
+
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+// Mark notification as read
+app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    await pool.execute(
+      'UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?',
+      [id, userId]
+    );
+
+    res.json({ message: 'Notification marked as read' });
+
+  } catch (error) {
+    console.error('Mark notification read error:', error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// Mark all notifications as read
+app.put('/api/notifications/read-all', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    await pool.execute(
+      'UPDATE notifications SET is_read = TRUE WHERE user_id = ?',
+      [userId]
+    );
+
+    res.json({ message: 'All notifications marked as read' });
+
+  } catch (error) {
+    console.error('Mark all notifications read error:', error);
+    res.status(500).json({ error: 'Failed to mark notifications as read' });
   }
 });
 
