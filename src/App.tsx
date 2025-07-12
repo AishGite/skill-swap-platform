@@ -5,6 +5,7 @@ import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
 import DashboardPage from './components/DashboardPage';
+import ProfilePage from './components/ProfilePage';
 import './App.css';
 
 interface User {
@@ -83,7 +84,15 @@ function App() {
                 <Navigate to="/login" replace />
             } 
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route 
+            path="/profile" 
+            element={
+              currentUser ? 
+                <ProfilePage currentUser={currentUser} onLogout={handleLogout} /> : 
+                <Navigate to="/login" replace />
+            } 
+          />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </div>
     </Router>
