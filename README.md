@@ -1,4 +1,8 @@
-# Skill Swap Platform 🚀
+# Selected Problem Statement : SKILL SWAP PLATFORM 🚀
+
+##Team Members : 
+Aishwarya Gite - aishgite@gmail.com
+Abhishek Saraff - abhisheksaraff18@gmail.com
 
 A beautiful and interactive platform where users can list their skills and request others in return. Built with React, Node.js, and MySQL.
 
@@ -229,25 +233,6 @@ The platform uses a blue, white, and yellow theme. To customize:
 - Use `npm run dev` for backend auto-reload
 - Check browser console for frontend errors
 - Monitor server logs for API issues
-
-## 📝 License
-
-This project is licensed under the ISC License.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📞 Support
-
-For support or questions:
-- Check the troubleshooting section
-- Review the API documentation
-- Open an issue on GitHub
 
 ---
 
