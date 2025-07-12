@@ -76,8 +76,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ currentUser, onLogout }) 
         id: notification.id,
         type: notification.type,
         message: notification.message,
-        time: new Date(notification.created_at).toLocaleDateString(),
-        read: notification.is_read
+        time: notification.time, // Use the already formatted time from backend
+        read: notification.read
       })));
     } catch (error) {
       console.error('Failed to load notifications:', error);

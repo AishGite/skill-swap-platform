@@ -217,7 +217,7 @@ const NotificationsPage: React.FC<NotificationsPageProps> = ({ currentUser, onLo
                       notifications.map((notification) => (
                         <div key={notification.id} className="px-4 py-3 hover:bg-gray-50">
                           <p className="text-sm text-gray-900">{notification.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">{formatDate(notification.created_at)}</p>
+                                                          <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
                         </div>
                       ))
                     )}
