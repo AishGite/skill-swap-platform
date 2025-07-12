@@ -588,7 +588,9 @@ app.put('/api/users/:id', authenticateToken, upload.single('profilePhoto'), asyn
     // Update skills
     if (skillsOffered) {
       await pool.execute('DELETE FROM skills WHERE user_id = ? AND skill_type = ?', [userId, 'offered']);
-      for (const skill of skillsOffered) {
+      // Parse JSON string if it's a string, otherwise use as is
+      const skillsOfferedArray = typeof skillsOffered === 'string' ? JSON.parse(skillsOffered) : skillsOffered;
+      for (const skill of skillsOfferedArray) {
         await pool.execute(
           'INSERT INTO skills (user_id, skill_name, skill_type) VALUES (?, ?, ?)',
           [userId, skill, 'offered']
@@ -598,7 +600,9 @@ app.put('/api/users/:id', authenticateToken, upload.single('profilePhoto'), asyn
 
     if (skillsWanted) {
       await pool.execute('DELETE FROM skills WHERE user_id = ? AND skill_type = ?', [userId, 'wanted']);
-      for (const skill of skillsWanted) {
+      // Parse JSON string if it's a string, otherwise use as is
+      const skillsWantedArray = typeof skillsWanted === 'string' ? JSON.parse(skillsWanted) : skillsWanted;
+      for (const skill of skillsWantedArray) {
         await pool.execute(
           'INSERT INTO skills (user_id, skill_name, skill_type) VALUES (?, ?, ?)',
           [userId, skill, 'wanted']
