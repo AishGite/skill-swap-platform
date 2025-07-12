@@ -4,6 +4,7 @@
 
 - **Aishwarya Gite** – [aishgite@gmail.com](mailto:aishgite@gmail.com)
 - **Abhishek Saraff** – [abhisheksaraff18@gmail.com](mailto:abhisheksaraff18@gmail.com)
+- **Video Link - https://drive.google.com/drive/folders/17E82R3vinUJdQN-rtVSYI950xxzDItOU?usp=sharing
 
 
 A beautiful and interactive platform where users can list their skills and request others in return. Built with React, Node.js, and MySQL.
