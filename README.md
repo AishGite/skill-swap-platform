@@ -1,8 +1,10 @@
 # Selected Problem Statement : SKILL SWAP PLATFORM 🚀
 
-##Team Members : 
-Aishwarya Gite - aishgite@gmail.com
-Abhishek Saraff - abhisheksaraff18@gmail.com
+##  Team Members
+
+- **Aishwarya Gite** – [aishgite@gmail.com](mailto:aishgite@gmail.com)
+- **Abhishek Saraff** – [abhisheksaraff18@gmail.com](mailto:abhisheksaraff18@gmail.com)
+
 
 A beautiful and interactive platform where users can list their skills and request others in return. Built with React, Node.js, and MySQL.
 
